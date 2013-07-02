@@ -13,39 +13,25 @@ tester.test(
       };
     };
 
-    var mocksRunCount = 0;
     global.document = {
-      getElementById: function() {
-        return {
-          width: 300,
-          height: 150,
+      getElementById: function() { return { getContext: function() {}}}
+    };
 
-          getContext: function() {
-            return {
-              beginPath: function() {},
-              closePath: function() {},
-              fill: function() {},
+    var mocksRunCount = 0;
+    global.canvasRenderer = {
+      center: function() { return { x: 150, y: 75 } },
 
-              fillRect: function(x, y, w, h) {
-                tester.isEqual(x, 0);
-                tester.isEqual(y, 0);
-                tester.isEqual(w, 300);
-                tester.isEqual(h, 150);
-                tester.isEqual(this.fillStyle, "#00f");
-                mocksRunCount++;
-              },
+      fillBackground: function(_, color) {
+        tester.isEqual(color, "#00f");
+        mocksRunCount++;
+      },
 
-              arc: function(x, y, radius, start, stop) {
-                tester.isEqual(x, 150);
-                tester.isEqual(y, 75);
-                tester.isEqual(radius, 30);
-                tester.isEqual(start, 0);
-                tester.isEqual(stop, Math.PI * 2);
-                mocksRunCount++;
-              }
-            };
-          }
-        };
+      fillCircle: function(_, x, y, radius, color) {
+        tester.isEqual(x, 150);
+        tester.isEqual(y, 75);
+        tester.isEqual(radius, 30);
+        tester.isEqual(color, "#ff0");
+        mocksRunCount++;
       }
     };
 
