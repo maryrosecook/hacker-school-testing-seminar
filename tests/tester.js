@@ -12,14 +12,42 @@ var gatherTests = function(testArray) {
   }, []);
 };
 
+var testSync = function(test, testComplete) {
+  test();
+  testComplete();
+};
+
+var testAsync = function(test, testComplete) {
+  var timeout = setTimeout(function() {
+    throw new Error("Failed: done() never called in async test.");
+  }, 500);
+
+  test(function() {
+    clearTimeout(timeout);
+    testComplete();
+  });
+};
+
+var runTests = function(tests) {
+  if (tests.length === 0) {
+    console.log();
+    process.exit();
+    return;
+  }
+
+  var testComplete = function() {
+    process.stdout.write(".");
+    runTests(tests.slice(1));
+  };
+
+  tests[0].length === 1 ?
+    testAsync(tests[0], testComplete) :
+    testSync(tests[0], testComplete);
+};
+
 exports.tester = {
   test: function(tests) {
-    gatherTests(arguments).forEach(function(test) {
-      test();
-      process.stdout.write(".");
-    });
-
-    console.log();
+    runTests(gatherTests(arguments));
   },
 
   isEqual: function(a, b) {
