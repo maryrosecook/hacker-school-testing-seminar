@@ -1,0 +1,138 @@
+General
+
+generally, code that is easier to test is better in other ways:
+  - more abstracted
+  - smaller functions
+  - responsibilites separated
+
+The more your feature set is nailed down, the better it is to write tests
+
+The more entangled your code is (eg compiler, not eg web app), the better it is to write tests
+
+Tests are more useful for stopping you breaking stuff than checking it is working in the first place.
+
+* Note how no done on first and done on second makes second clobber first.
+* Note how no dones means assertions not run.
+
+Done:
+  1. Allows you to check your assertions got run.
+  2. Stops tests trampling on each other.
+
+
+
+
+// refactored server.js
+
+var http = require('http');
+var fs = require('fs');
+
+var DAY = "day";
+var NIGHT = "night";
+
+var server = {
+  writeResponse: function(res, contentType, data) {
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  },
+
+  serveStaticFile: function(path, contentType) {
+    var self = this;
+    return function(_, res) {
+      fs.readFile(path, 'utf8', function(err, data) {
+        self.writeResponse(res, contentType, data);
+      });
+    };
+  },
+
+  requestHandler: function(req, res) {
+    var route = routes[req.url];
+    if (route !== undefined) {
+      route(req, res);
+    }
+  }
+};
+
+var routes = {
+  "/": server.serveStaticFile("index.html", "text/html"),
+
+  "/client.js": server.serveStaticFile("client.js", "application/javascript"),
+
+  "/canvas-renderer.js": server.serveStaticFile("canvas-renderer.js",
+                                                "application/javascript"),
+
+  "/time.json": function(_, res) {
+    var hour = new Date().getHours();
+    var time = hour > 6 && hour < 20 ? DAY : NIGHT;
+    server.writeResponse(res, "application/json", '{ "time": "' + time + '" }');
+  }
+};
+
+http.createServer(server.requestHandler).listen(4000, function() {
+  console.log("Server started at http://localhost:4000/");
+});
+
+exports.server = server;
+
+
+
+
+
+// tests/server_tests.js
+
+;(function() {
+  var tester = require('./tester').tester;
+  var server = require('../server').server;
+
+  var StubRequest = function(url) {
+    return { url: url };
+  };
+
+  var StubResponse = function() {
+    return {
+      writeHead: function() {},
+      end: function() {}
+    };
+  };
+
+  var mockWriteResponse = function(contentType, stringStart, done) {
+    return function(_, inContentType, data) {
+      tester.isEqual(inContentType, contentType);
+      tester.isEqual(stringStart, data.substring(0, stringStart.length));
+      done();
+    };
+  };
+
+  tester.test({
+    'should serve home page': function(done) {
+      server.writeResponse = mockWriteResponse("text/html", "<!doctype", done);
+      server.requestHandler(new StubRequest("/"), new StubResponse());
+    },
+
+    'should serve client.js': function(done) {
+      var fileStart = ";(function(exports) {\n  exports.get";
+      server.writeResponse = mockWriteResponse("application/javascript", fileStart, done);
+      server.requestHandler(new StubRequest("/client.js"), new StubResponse());
+    },
+
+    'should serve canvas-renderer.js': function(done) {
+      var fileStart = ";(function(exports) {\n  exports.canvasRenderer";
+      server.writeResponse = mockWriteResponse("application/javascript", fileStart, done);
+      server.requestHandler(new StubRequest("/canvas-renderer.js"), new StubResponse());
+    },
+
+    'should say day when it is the day': function(done) {
+      global.Date = function() {
+        return { getHours: function() { return 7; } };
+      };
+      Date.now = function() {};
+
+      server.writeResponse = function(_, contentType, data) {
+        tester.isEqual(contentType, "application/json");
+        tester.isEqual(data, '{ "time": "day" }');
+        done();
+      };
+
+      server.requestHandler(new StubRequest("/time.json"), new StubResponse());
+    }
+  });
+})(this);
